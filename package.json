@@ -18,7 +18,9 @@
     "cli",
     "tool",
     "reuse",
-    "optimization"
+    "optimization",
+    "disk-space",
+    "performance"
   ],
   "repository": {
     "type": "git",
@@ -37,10 +39,6 @@
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
     "inquirer": "^9.2.12"
-  },
-  "devDependencies": {},
-  "scripts": {
-    "test": "echo \"No tests specified\" && exit 0"
   },
   "engines": {
     "node": ">=16.0.0"

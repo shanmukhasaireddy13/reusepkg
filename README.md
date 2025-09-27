@@ -13,12 +13,35 @@ A CLI tool to reuse Node.js packages across multiple projects by creating symlin
 
 ## 📦 Installation
 
+### Global Installation (Recommended)
+
 ```bash
-# Install globally
+# Install globally from npm
 npm install -g reusepkg
 
-# Or use with npx
+# Verify installation
+reusepkg --version
+```
+
+### Using with npx (No Installation Required)
+
+```bash
+# Use directly without installation
 npx reusepkg --help
+
+# Run commands directly
+npx reusepkg link
+npx reusepkg doctor
+```
+
+### Local Installation
+
+```bash
+# Install in a specific project
+npm install reusepkg
+
+# Use via npx
+npx reusepkg link
 ```
 
 ## 🛠️ Usage
@@ -237,11 +260,92 @@ DEBUG=reusepkg* reusepkg link
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! Here's how you can help:
+
+1. **Fork the repository** on GitHub
+2. **Clone your fork** locally:
+   ```bash
+   git clone https://github.com/yourusername/reusepkg.git
+   cd reusepkg
+   ```
+3. **Create a feature branch**:
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+4. **Make your changes** and test them:
+   ```bash
+   npm test
+   ```
+5. **Commit your changes**:
+   ```bash
+   git commit -m 'Add amazing feature'
+   ```
+6. **Push to your fork**:
+   ```bash
+   git push origin feature/amazing-feature
+   ```
+7. **Open a Pull Request** on GitHub
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/reusepkg.git
+cd reusepkg
+
+# Install dependencies
+npm install
+
+# Test the tool
+node reusepkg.js --help
+```
+
+## 📦 Publishing to npm
+
+If you want to publish your own version or contribute to the main package:
+
+### Prerequisites
+
+1. **Create an npm account** at [npmjs.com](https://www.npmjs.com)
+2. **Login to npm**:
+   ```bash
+   npm login
+   ```
+
+### Publishing Steps
+
+1. **Update version** in `package.json`:
+   ```bash
+   npm version patch  # for bug fixes
+   npm version minor  # for new features
+   npm version major  # for breaking changes
+   ```
+
+2. **Test your package**:
+   ```bash
+   npm pack  # Creates a tarball to test
+   ```
+
+3. **Publish to npm**:
+   ```bash
+   npm publish
+   ```
+
+4. **Verify publication**:
+   ```bash
+   npm view reusepkg
+   ```
+
+### Updating the Package
+
+```bash
+# Make your changes
+# Update version
+npm version patch
+
+# Publish update
+npm publish
+```
 
 ## 📄 License
 
