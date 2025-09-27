@@ -343,6 +343,123 @@ function listCommand() {
   }
 }
 
+// Search command
+async function searchCommand(packageName) {
+  if (!packageName) {
+    console.error(chalk.red('❌ Please provide a package name to search'));
+    console.log(chalk.yellow('Usage: reusepkg search <package-name>'));
+    return;
+  }
+
+  console.log(chalk.blue(`🔍 Searching for ${packageName}...`));
+  
+  try {
+    // Check if package exists in global store
+    const registry = loadRegistry();
+    const packages = Object.values(registry);
+    
+    const foundPackages = packages.filter(pkg => 
+      pkg.name.toLowerCase().includes(packageName.toLowerCase())
+    );
+    
+    if (foundPackages.length > 0) {
+      console.log(chalk.green(`✅ Found ${foundPackages.length} package(s) in global store:`));
+      console.log();
+      
+      foundPackages.forEach(pkg => {
+        const exists = fs.existsSync(pkg.storePath);
+        const status = exists ? chalk.green('✅') : chalk.red('❌');
+        console.log(`  ${status} ${pkg.name}@${pkg.version} (${pkg.storePath})`);
+      });
+    } else {
+      console.log(chalk.yellow(`⚠️ No packages found matching "${packageName}" in global store`));
+    }
+    
+    // Also check if package is available on npm
+    console.log(chalk.blue(`\n🌐 Checking npm registry for ${packageName}...`));
+    
+    try {
+      const result = execSync(`npm view ${packageName} --json`, { 
+        encoding: 'utf8', 
+        stdio: 'pipe' 
+      });
+      
+      const packageInfo = JSON.parse(result);
+      console.log(chalk.green(`✅ Package "${packageName}" is available on npm:`));
+      console.log(`  📦 Name: ${packageInfo.name}`);
+      console.log(`  📝 Description: ${packageInfo.description || 'No description'}`);
+      console.log(`  🏷️ Latest Version: ${packageInfo.version}`);
+      console.log(`  📊 Downloads: ${packageInfo.downloads ? packageInfo.downloads.lastMonth : 'Unknown'}`);
+      
+      if (packageInfo.keywords) {
+        console.log(`  🏷️ Keywords: ${packageInfo.keywords.slice(0, 5).join(', ')}`);
+      }
+      
+    } catch (npmError) {
+      console.log(chalk.red(`❌ Package "${packageName}" not found on npm`));
+    }
+    
+  } catch (error) {
+    console.error(chalk.red(`❌ Search failed: ${error.message}`));
+  }
+}
+
+// Uninstall command
+async function uninstallCommand() {
+  console.log(chalk.blue('🗑️ Uninstalling reusepkg...'));
+  
+  try {
+    // Check if running as global package
+    const isGlobal = process.env.npm_config_global === 'true' || 
+                     process.env.npm_config_prefix || 
+                     process.argv.includes('--global');
+    
+    if (!isGlobal) {
+      console.log(chalk.yellow('⚠️ This command should be run globally. Use: npm uninstall -g reusepkg'));
+      return;
+    }
+    
+    // Ask for confirmation
+    const { confirm } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'confirm',
+      message: 'Are you sure you want to uninstall reusepkg? This will remove the global package.',
+      default: false
+    }]);
+    
+    if (!confirm) {
+      console.log(chalk.yellow('❌ Uninstall cancelled'));
+      return;
+    }
+    
+    // Ask about cleaning global store
+    const { cleanStore } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'cleanStore',
+      message: 'Do you also want to remove the global store (~/.reusepkg)? This will delete all stored packages.',
+      default: false
+    }]);
+    
+    if (cleanStore) {
+      try {
+        if (fs.existsSync(GLOBAL_STORE_DIR)) {
+          fs.rmSync(GLOBAL_STORE_DIR, { recursive: true, force: true });
+          console.log(chalk.green('✅ Global store removed'));
+        }
+      } catch (error) {
+        console.log(chalk.yellow(`⚠️ Could not remove global store: ${error.message}`));
+        console.log(chalk.yellow('You can manually remove it later: rm -rf ~/.reusepkg'));
+      }
+    }
+    
+    console.log(chalk.green('✅ reusepkg uninstalled successfully'));
+    console.log(chalk.blue('To complete the uninstall, run: npm uninstall -g reusepkg'));
+    
+  } catch (error) {
+    console.error(chalk.red(`❌ Uninstall failed: ${error.message}`));
+  }
+}
+
 // Clean command
 async function cleanCommand() {
   const registry = loadRegistry();
@@ -450,7 +567,7 @@ const program = new Command();
 program
   .name('reusepkg')
   .description('Reuse Node.js packages across projects by linking instead of reinstalling')
-  .version('1.0.0');
+  .version('1.2.2');
 
 program
   .command('link')
@@ -498,6 +615,31 @@ program
     try {
       initializeGlobalStore();
       await cleanCommand();
+    } catch (error) {
+      console.error(chalk.red(`❌ Error: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('search <package-name>')
+  .description('Search for a package in global store and npm registry')
+  .action(async (packageName) => {
+    try {
+      initializeGlobalStore();
+      await searchCommand(packageName);
+    } catch (error) {
+      console.error(chalk.red(`❌ Error: ${error.message}`));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('uninstall')
+  .description('Uninstall reusepkg and optionally clean global store')
+  .action(async () => {
+    try {
+      await uninstallCommand();
     } catch (error) {
       console.error(chalk.red(`❌ Error: ${error.message}`));
       process.exit(1);

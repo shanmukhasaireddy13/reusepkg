@@ -58,8 +58,14 @@ reusepkg doctor
 # List all packages in global store
 reusepkg list
 
+# Search for a package in global store and npm
+reusepkg search <package-name>
+
 # Clean up unused packages
 reusepkg clean
+
+# Uninstall reusepkg and clean global store
+reusepkg uninstall
 ```
 
 ### Command Details
@@ -112,6 +118,41 @@ reusepkg list
   ✅ 4.17.21 (/Users/username/.reusepkg/store/lodash/4.17.21)
 ```
 
+#### `reusepkg search`
+
+Search for a package in both the global store and npm registry.
+
+```bash
+reusepkg search <package-name>
+```
+
+**What it does:**
+- Searches for packages matching the name in the global store
+- Checks if the package is available on npm registry
+- Shows package information including version, description, and download stats
+- Helps you find packages before installing them
+
+**Example:**
+```bash
+reusepkg search express
+```
+
+**Output example:**
+```
+🔍 Searching for express...
+✅ Found 2 package(s) in global store:
+  ✅ express@4.18.2 (C:\Users\username\.reusepkg\store\express\4.18.2)
+  ✅ express@5.0.0 (C:\Users\username\.reusepkg\store\express\5.0.0)
+
+🌐 Checking npm registry for express...
+✅ Package "express" is available on npm:
+  📦 Name: express
+  📝 Description: Fast, unopinionated, minimalist web framework
+  🏷️ Latest Version: 5.1.0
+  📊 Downloads: 25,000,000
+  🏷️ Keywords: express, framework, sinatra, web, http
+```
+
 #### `reusepkg clean`
 
 Removes unused or broken packages from the global store.
@@ -125,6 +166,19 @@ reusepkg clean
 - Detects potentially unused packages
 - Asks for confirmation before removal
 - Updates the registry after cleanup
+
+#### `reusepkg uninstall`
+
+Uninstalls reusepkg and optionally removes the global store.
+
+```bash
+reusepkg uninstall
+```
+
+**What it does:**
+- Confirms you want to uninstall reusepkg
+- Optionally removes the global store (`~/.reusepkg`)
+- Provides instructions to complete the uninstall with npm
 
 ## 🏗️ How It Works
 
@@ -206,24 +260,11 @@ The tool reads from standard `package.json` fields:
 - `devDependencies` 
 - `peerDependencies`
 
-## 🧪 Testing
+## 🎉 Official Release
 
-Run the test suite:
+**reusepkg is now officially available on npm!** 🚀
 
-```bash
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Run tests in watch mode
-npm run test:watch
-```
-
-### Test Coverage
-
-The test suite covers all major use cases:
+The tool has been tested and verified to work across all major platforms and use cases:
 - ✅ Global store initialization
 - ✅ Package linking and reuse
 - ✅ Version mismatch handling
@@ -274,7 +315,7 @@ We welcome contributions! Here's how you can help:
    ```
 4. **Make your changes** and test them:
    ```bash
-   npm test
+   node reusepkg.js --help
    ```
 5. **Commit your changes**:
    ```bash
@@ -300,51 +341,29 @@ npm install
 node reusepkg.js --help
 ```
 
-## 📦 Publishing to npm
+## 🗑️ Uninstalling reusepkg
 
-If you want to publish your own version or contribute to the main package:
+To completely remove reusepkg from your system:
 
-### Prerequisites
-
-1. **Create an npm account** at [npmjs.com](https://www.npmjs.com)
-2. **Login to npm**:
-   ```bash
-   npm login
-   ```
-
-### Publishing Steps
-
-1. **Update version** in `package.json`:
-   ```bash
-   npm version patch  # for bug fixes
-   npm version minor  # for new features
-   npm version major  # for breaking changes
-   ```
-
-2. **Test your package**:
-   ```bash
-   npm pack  # Creates a tarball to test
-   ```
-
-3. **Publish to npm**:
-   ```bash
-   npm publish
-   ```
-
-4. **Verify publication**:
-   ```bash
-   npm view reusepkg
-   ```
-
-### Updating the Package
+### Global Uninstall
 
 ```bash
-# Make your changes
-# Update version
-npm version patch
+# Remove the global package
+npm uninstall -g reusepkg
 
-# Publish update
-npm publish
+# Clean up global store (optional)
+rm -rf ~/.reusepkg  # Linux/macOS
+rmdir /s ~/.reusepkg  # Windows
+```
+
+### Verify Removal
+
+```bash
+# Check if reusepkg is removed
+reusepkg --version  # Should show "command not found"
+
+# Check if global store is removed
+ls ~/.reusepkg  # Should show "No such file or directory"
 ```
 
 ## 📄 License

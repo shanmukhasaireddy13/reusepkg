@@ -1,6 +1,6 @@
 {
   "name": "reusepkg",
-  "version": "1.0.0",
+  "version": "1.2.2",
   "description": "A tool to reuse Node.js packages across projects by linking instead of reinstalling",
   "main": "reusepkg.js",
   "bin": {
