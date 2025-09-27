@@ -291,14 +291,6 @@ The tool has been tested and verified to work across all major platforms and use
 - Run `reusepkg doctor` to identify and fix broken links
 - Use `reusepkg clean` to remove orphaned packages
 
-### Debug Mode
-
-For detailed logging, you can modify the tool to add debug output:
-
-```bash
-DEBUG=reusepkg* reusepkg link
-```
-
 ## 🤝 Contributing
 
 We welcome contributions! Here's how you can help:
