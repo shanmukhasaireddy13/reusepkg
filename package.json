@@ -1,0 +1,48 @@
+{
+  "name": "reusepkg",
+  "version": "1.0.0",
+  "description": "A tool to reuse Node.js packages across projects by linking instead of reinstalling",
+  "main": "reusepkg.js",
+  "bin": {
+    "reusepkg": "./reusepkg.js"
+  },
+  "type": "module",
+  "author": "S.Shanmukha Sai Reddy",
+  "license": "MIT",
+  "keywords": [
+    "npm",
+    "package-manager",
+    "symlink",
+    "dependencies",
+    "node-modules",
+    "cli",
+    "tool",
+    "reuse",
+    "optimization"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/reusepkg.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/reusepkg/issues"
+  },
+  "homepage": "https://github.com/yourusername/reusepkg#readme",
+  "files": [
+    "reusepkg.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0",
+    "inquirer": "^9.2.12"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
