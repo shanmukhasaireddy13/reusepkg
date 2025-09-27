@@ -38,7 +38,8 @@ coverage/
 
 # Dependencies
 node_modules/
-
+project-1/
+project-2/
 # Example files
 example/
 examples/

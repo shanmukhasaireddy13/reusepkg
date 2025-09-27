@@ -60,7 +60,8 @@ jspm_packages/
 
 # DynamoDB Local files
 .dynamodb/
-
+project-1/
+project-2/
 # TernJS port file
 .tern-port
 
@@ -80,7 +81,6 @@ jspm_packages/
 ehthumbs.db
 Thumbs.db
 reusepkg-1.0.0.tgz
-reusepkg.js
 
 # IDE files
 .vscode/

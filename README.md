@@ -4,11 +4,11 @@ A CLI tool to reuse Node.js packages across multiple projects by creating symlin
 
 ## 🚀 Features
 
-- **Global Package Store**: Store all installed packages in a centralized location (`~/.reusepkg/store`)
-- **Smart Version Management**: Handle multiple versions of the same package separately
+- **Smart Address Registry**: Tracks package locations without duplicating files
+- **Intelligent Package Discovery**: Finds existing installations before installing new ones
 - **Cross-Platform Support**: Works on Windows, macOS, and Linux with automatic fallback to copying on Windows
 - **Dependency Health Checking**: Detect and fix broken or missing symlinks
-- **Cleanup Tools**: Remove unused packages from the global store
+- **Address Management**: Clean up broken package addresses from the registry
 - **Beautiful CLI**: Colorful output with emojis and clear status messages
 
 ## 📦 Installation
@@ -49,6 +49,10 @@ npx reusepkg link
 ### Basic Commands
 
 ```bash
+# Install packages (reuses existing installations when possible)
+reusepkg install <package-name> [version]
+reusepkg i <package-name> [version]
+
 # Link project dependencies from global store
 reusepkg link
 
@@ -70,9 +74,35 @@ reusepkg uninstall
 
 ### Command Details
 
+#### `reusepkg install` / `reusepkg i`
+
+Install packages by reusing existing installations when possible.
+
+```bash
+# Install latest version
+reusepkg install express
+reusepkg i express
+
+# Install specific version
+reusepkg install lodash@4.17.21
+reusepkg i lodash@4.17.21
+```
+
+**How it works:**
+- **First**: Searches for existing installations in common locations
+- **If found**: Creates symlink to existing installation (saves space!)
+- **If not found**: Installs with npm and stores the path for future reuse
+- **Always**: Updates package.json with the dependency
+
+**Smart Reuse Strategy:**
+- Searches current directory and parent directories
+- Checks common project locations (`~/projects`, `~/workspace`, etc.)
+- Looks in global npm modules
+- Only installs with npm as a last resort
+
 #### `reusepkg link`
 
-Reads `package.json` in the current directory and symlinks dependencies from the global store. If a dependency doesn't exist in the global store, it will be installed there first.
+Reads `package.json` in the current directory and processes dependencies intelligently. If a dependency is already available in the global registry, it creates a symlink. If not found, it adds the current project's package address to the registry.
 
 ```bash
 # In your project directory
@@ -81,9 +111,10 @@ reusepkg link
 
 **What it does:**
 - Reads `dependencies`, `devDependencies`, and `peerDependencies` from `package.json`
-- Installs missing packages to `~/.reusepkg/store`
-- Creates symlinks in `node_modules/` pointing to the global store
-- Handles version mismatches by storing packages separately
+- Checks if packages are already available in the global registry
+- If found: Creates symlinks to existing installations
+- If not found: Adds current project's package address to the registry
+- Never stores packages in global store - only tracks addresses
 
 #### `reusepkg doctor`
 
@@ -100,7 +131,7 @@ reusepkg doctor
 
 #### `reusepkg list`
 
-Shows all packages stored in the global store with their versions and status.
+Shows all package addresses tracked in the global registry with their locations and status.
 
 ```bash
 reusepkg list
@@ -108,14 +139,15 @@ reusepkg list
 
 **Output example:**
 ```
-📦 Global store contains 3 packages:
+📦 Global registry contains 2 package addresses:
 
 📦 express:
-  ✅ 4.18.2 (/Users/username/.reusepkg/store/express/4.18.2)
-  ✅ 5.0.0 (/Users/username/.reusepkg/store/express/5.0.0)
+  ✅ 5.1.0 (C:\Users\username\project-a\node_modules\express)
+     Source: current-project
 
-📦 lodash:
-  ✅ 4.17.21 (/Users/username/.reusepkg/store/lodash/4.17.21)
+📦 axios:
+  ✅ latest (C:\Users\username\project-b\node_modules\axios)
+     Source: existing-installation
 ```
 
 #### `reusepkg search`
@@ -155,16 +187,16 @@ reusepkg search express
 
 #### `reusepkg clean`
 
-Removes unused or broken packages from the global store.
+Removes broken package addresses from the global registry.
 
 ```bash
 reusepkg clean
 ```
 
 **What it does:**
-- Identifies broken packages (missing from filesystem)
-- Detects potentially unused packages
-- Asks for confirmation before removal
+- Identifies broken package addresses (pointing to non-existent locations)
+- Shows valid package addresses that are still working
+- Asks for confirmation before removing broken addresses
 - Updates the registry after cleanup
 
 #### `reusepkg uninstall`
@@ -182,33 +214,35 @@ reusepkg uninstall
 
 ## 🏗️ How It Works
 
-### Global Store Structure
+### Global Registry Structure
 
 ```
 ~/.reusepkg/
-├── registry.json          # Package registry mapping
-└── store/                 # Global package store
-    ├── express/
-    │   ├── 4.18.2/        # Express v4.18.2
-    │   └── 5.0.0/         # Express v5.0.0
-    └── lodash/
-        └── 4.17.21/       # Lodash v4.17.21
+└── registry.json          # Package address registry
 ```
 
 ### Registry Format
 
-The `registry.json` file maps package names and versions to their store locations:
+The `registry.json` file maps package names and versions to their actual installation locations:
 
 ```json
 {
-  "express@4.18.2": {
+  "express@5.1.0": {
     "name": "express",
-    "version": "4.18.2",
-    "storePath": "/Users/username/.reusepkg/store/express/4.18.2",
-    "installedAt": "2024-01-15T10:30:00.000Z"
+    "version": "5.1.0",
+    "storePath": "/Users/username/project-a/node_modules/express",
+    "addedAt": "2024-01-15T10:30:00.000Z",
+    "source": "current-project"
   }
 }
 ```
+
+### Smart Address Tracking
+
+- **No Global Store**: reusepkg doesn't store packages in a global location
+- **Address Registry**: Only tracks where packages are already installed
+- **Intelligent Discovery**: Finds existing installations before installing new ones
+- **Space Efficient**: Reuses existing installations via symlinks
 
 ### Symlink Strategy
 
@@ -217,41 +251,44 @@ The `registry.json` file maps package names and versions to their store location
 
 ## 📋 Use Cases
 
-### Case 1: Same Package, Same Version
+### Case 1: Smart Package Linking
 ```bash
 # Project A
 cd project-a
-reusepkg link  # Installs express@4.18.2 to global store
+npm install express          # Install express normally
+reusepkg link               # Adds express address to global registry
 
 # Project B  
 cd project-b
-reusepkg link  # Reuses express@4.18.2 from global store
+reusepkg link               # Finds express in registry, creates symlink!
 ```
 
-### Case 2: Same Package, Different Versions
+### Case 2: Address-Based Reuse
 ```bash
 # Project A
 cd project-a
-reusepkg link  # Installs express@4.18.2
+npm install express@4.18.2  # Install specific version
+reusepkg link               # Adds address to registry
 
 # Project B
 cd project-b  
-reusepkg link  # Installs express@5.0.0 separately
+npm install express@5.0.0   # Install different version
+reusepkg link               # Adds different address to registry
 ```
 
-### Case 3: Project Deletion and Cleanup
+### Case 3: Registry Cleanup
 ```bash
 # After deleting projects
 reusepkg doctor  # Detects broken symlinks
-reusepkg clean   # Removes unused packages
+reusepkg clean   # Removes broken addresses from registry
 ```
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
-- `HOME` (Linux/macOS) or `USERPROFILE` (Windows): Determines global store location
-- Default store location: `~/.reusepkg/`
+- `HOME` (Linux/macOS) or `USERPROFILE` (Windows): Determines global registry location
+- Default registry location: `~/.reusepkg/`
 
 ### Package.json Requirements
 
@@ -265,9 +302,9 @@ The tool reads from standard `package.json` fields:
 **reusepkg is now officially available on npm!** 🚀
 
 The tool has been tested and verified to work across all major platforms and use cases:
-- ✅ Global store initialization
-- ✅ Package linking and reuse
-- ✅ Version mismatch handling
+- ✅ Global registry initialization
+- ✅ Smart package discovery and linking
+- ✅ Address-based package reuse
 - ✅ Broken symlink detection
 - ✅ Cross-platform compatibility
 - ✅ Error handling scenarios
@@ -289,7 +326,7 @@ The tool has been tested and verified to work across all major platforms and use
 
 **"Broken symlinks detected"**
 - Run `reusepkg doctor` to identify and fix broken links
-- Use `reusepkg clean` to remove orphaned packages
+- Use `reusepkg clean` to remove broken addresses from registry
 
 ## 🤝 Contributing
 
@@ -343,7 +380,7 @@ To completely remove reusepkg from your system:
 # Remove the global package
 npm uninstall -g reusepkg
 
-# Clean up global store (optional)
+# Clean up global registry (optional)
 rm -rf ~/.reusepkg  # Linux/macOS
 rmdir /s ~/.reusepkg  # Windows
 ```
@@ -354,7 +391,7 @@ rmdir /s ~/.reusepkg  # Windows
 # Check if reusepkg is removed
 reusepkg --version  # Should show "command not found"
 
-# Check if global store is removed
+# Check if global registry is removed
 ls ~/.reusepkg  # Should show "No such file or directory"
 ```
 
@@ -370,10 +407,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📊 Performance Benefits
 
-- **Disk Space**: Save 50-80% disk space by sharing common dependencies
-- **Installation Speed**: Skip re-downloading packages already in global store
+- **Disk Space**: Save 50-80% disk space by sharing common dependencies via symlinks
+- **Installation Speed**: Skip re-downloading packages by reusing existing installations
 - **Development Speed**: Faster project setup and dependency management
 - **CI/CD**: Reduced build times in continuous integration environments
+- **Smart Discovery**: Automatically finds existing packages before installing new ones
 
 ---
 

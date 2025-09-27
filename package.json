@@ -1,6 +1,6 @@
 {
   "name": "reusepkg",
-  "version": "1.2.2",
+  "version": "1.3.1",
   "description": "A tool to reuse Node.js packages across projects by linking instead of reinstalling",
   "main": "reusepkg.js",
   "bin": {
@@ -24,12 +24,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/reusepkg.git"
+    "url": "https://github.com/shanmukhasaireddy13/reusepkg.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/reusepkg/issues"
+    "url": "https://github.com/shanmukhasaireddy13/reusepkg/issues"
   },
-  "homepage": "https://github.com/yourusername/reusepkg#readme",
+  "homepage": "https://github.com/shanmukhasaireddy13/reusepkg#readme",
   "files": [
     "reusepkg.js",
     "README.md",

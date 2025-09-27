@@ -83,48 +83,8 @@ function packageExistsInStore(name, version) {
   return fs.existsSync(storePath) && fs.existsSync(path.join(storePath, 'package.json'));
 }
 
-// Install package to global store
-async function installToGlobalStore(name, version) {
-  const registry = loadRegistry();
-  const key = getPackageKey(name, version);
-  
-  if (packageExistsInStore(name, version)) {
-    console.log(chalk.blue(`📦 Package ${name}@${version} already exists in global store`));
-    return registry[key].storePath;
-  }
-  
-  console.log(chalk.yellow(`⬇️ Installing ${name}@${version} to global store...`));
-  
-  const storePath = getPackageStorePath(name, version);
-  fs.mkdirSync(storePath, { recursive: true });
-  
-  try {
-    // Install package to global store
-    execSync(`npm install ${name}@${version} --prefix "${storePath}" --no-save`, {
-      stdio: 'inherit',
-      cwd: storePath
-    });
-    
-    // Update registry
-    registry[key] = {
-      name,
-      version,
-      storePath,
-      installedAt: new Date().toISOString()
-    };
-    saveRegistry(registry);
-    
-    console.log(chalk.green(`✅ Installed ${name}@${version} to global store`));
-    return storePath;
-  } catch (error) {
-    // Clean up on failure
-    if (fs.existsSync(storePath)) {
-      fs.rmSync(storePath, { recursive: true, force: true });
-    }
-    console.error(chalk.red(`❌ Failed to install ${name}@${version}: ${error.message}`));
-    throw error;
-  }
-}
+// This function is no longer needed since we don't store packages in global store
+// We only store addresses of existing installations
 
 // Create symlink (with fallback to copy on Windows)
 function createSymlink(target, linkPath) {
@@ -156,6 +116,206 @@ function createSymlink(target, linkPath) {
   }
 }
 
+// Find existing package installation
+function findExistingPackage(packageName, version) {
+  const registry = loadRegistry();
+  const key = getPackageKey(packageName, version);
+  
+  // Check if we already have this package in registry
+  if (registry[key] && fs.existsSync(registry[key].storePath)) {
+    return registry[key].storePath;
+  }
+  
+  // Search for existing installations in common locations
+  const searchPaths = [
+    // Current directory and parent directories
+    process.cwd(),
+    path.join(process.cwd(), '..'),
+    path.join(process.cwd(), '../..'),
+    // Common project locations
+    path.join(process.env.HOME || process.env.USERPROFILE, 'projects'),
+    path.join(process.env.HOME || process.env.USERPROFILE, 'workspace'),
+    path.join(process.env.HOME || process.env.USERPROFILE, 'dev'),
+    // Global npm modules
+    path.join(process.env.APPDATA || process.env.HOME, 'npm', 'node_modules'),
+    // Node modules in common locations
+    path.join(process.env.HOME || process.env.USERPROFILE, 'node_modules')
+  ];
+  
+  for (const searchPath of searchPaths) {
+    if (fs.existsSync(searchPath)) {
+      const packagePath = path.join(searchPath, 'node_modules', packageName);
+      if (fs.existsSync(packagePath) && fs.existsSync(path.join(packagePath, 'package.json'))) {
+        // Check if version matches (approximately)
+        try {
+          const packageJson = JSON.parse(fs.readFileSync(path.join(packagePath, 'package.json'), 'utf8'));
+          if (packageJson.version === version || version === 'latest') {
+            console.log(chalk.blue(`🔍 Found existing ${packageName}@${packageJson.version} at ${packagePath}`));
+            return packagePath;
+          }
+        } catch (error) {
+          // If we can't read package.json, still use it
+          console.log(chalk.blue(`🔍 Found existing ${packageName} at ${packagePath}`));
+          return packagePath;
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Install command
+async function installCommand(packageName, version = 'latest') {
+  if (!packageName) {
+    console.error(chalk.red('❌ Please provide a package name to install'));
+    console.log(chalk.yellow('Usage: reusepkg install <package-name> [version]'));
+    console.log(chalk.yellow('       reusepkg i <package-name> [version]'));
+    return;
+  }
+
+  // Parse package name and version if packageName contains @
+  let actualPackageName = packageName;
+  let actualVersion = version;
+  
+  if (packageName.includes('@')) {
+    const parts = packageName.split('@');
+    actualPackageName = parts[0];
+    actualVersion = parts[1];
+  }
+
+  console.log(chalk.blue(`📦 Installing ${actualPackageName}@${actualVersion}...`));
+  
+  try {
+    // Clean version string (remove ^, ~, etc.)
+    const cleanVersion = actualVersion.replace(/^[\^~]/, '');
+    
+    // First, try to find existing installation
+    let packagePath = findExistingPackage(actualPackageName, cleanVersion);
+    
+    if (!packagePath) {
+      console.log(chalk.yellow(`⚠️ No existing installation found for ${actualPackageName}@${cleanVersion}`));
+      console.log(chalk.blue(`📦 Installing ${actualPackageName}@${cleanVersion} with npm...`));
+      
+      // Install with npm in current project
+      execSync(`npm install ${actualPackageName}@${cleanVersion}`, {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+      
+      packagePath = path.join(process.cwd(), 'node_modules', actualPackageName);
+      
+      // Store this installation in registry for future reuse
+      const registry = loadRegistry();
+      const key = getPackageKey(actualPackageName, cleanVersion);
+      registry[key] = {
+        name: actualPackageName,
+        version: cleanVersion,
+        storePath: packagePath,
+        installedAt: new Date().toISOString(),
+        source: 'npm-install'
+      };
+      saveRegistry(registry);
+      
+      console.log(chalk.green(`✅ Installed ${actualPackageName}@${cleanVersion} with npm`));
+    } else {
+      // Create symlink to existing installation
+      const nodeModulesPath = path.join(process.cwd(), 'node_modules');
+      if (!fs.existsSync(nodeModulesPath)) {
+        fs.mkdirSync(nodeModulesPath, { recursive: true });
+      }
+      
+      const linkPath = path.join(nodeModulesPath, actualPackageName);
+      const isSymlink = createSymlink(packagePath, linkPath);
+      
+      if (isSymlink) {
+        console.log(chalk.green(`🔗 Linked to existing ${actualPackageName}@${cleanVersion}`));
+      } else {
+        console.log(chalk.green(`📋 Copied from existing ${actualPackageName}@${cleanVersion}`));
+      }
+      
+      // Store this path in registry for future reuse
+      const registry = loadRegistry();
+      const key = getPackageKey(actualPackageName, cleanVersion);
+      registry[key] = {
+        name: actualPackageName,
+        version: cleanVersion,
+        storePath: packagePath,
+        installedAt: new Date().toISOString(),
+        source: 'existing-installation'
+      };
+      saveRegistry(registry);
+    }
+    
+    // Update package.json
+    await updatePackageJson(actualPackageName, actualVersion);
+    
+    console.log(chalk.green(`✅ Successfully installed ${actualPackageName}@${cleanVersion}`));
+    
+  } catch (error) {
+    console.error(chalk.red(`❌ Failed to install ${actualPackageName}: ${error.message}`));
+  }
+}
+
+// Update package.json with new dependency
+async function updatePackageJson(packageName, version) {
+  const packageJsonPath = path.join(process.cwd(), 'package.json');
+  
+  if (!fs.existsSync(packageJsonPath)) {
+    console.log(chalk.yellow('⚠️ No package.json found. Creating one...'));
+    
+    // Create a basic package.json
+    const packageJson = {
+      name: path.basename(process.cwd()),
+      version: '1.0.0',
+      description: '',
+      main: 'index.js',
+      dependencies: {}
+    };
+    
+    fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+  }
+  
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    
+    // Initialize dependencies if not exists
+    if (!packageJson.dependencies) {
+      packageJson.dependencies = {};
+    }
+    
+    // Add the package to dependencies
+    packageJson.dependencies[packageName] = version;
+    
+    // Write back to package.json
+    fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+    
+    console.log(chalk.blue(`📝 Updated package.json with ${packageName}@${version}`));
+    
+  } catch (error) {
+    console.log(chalk.yellow(`⚠️ Could not update package.json: ${error.message}`));
+  }
+}
+
+// Find existing package in current project
+function findPackageInCurrentProject(packageName, version) {
+  const nodeModulesPath = path.join(process.cwd(), 'node_modules', packageName);
+  
+  if (fs.existsSync(nodeModulesPath) && fs.existsSync(path.join(nodeModulesPath, 'package.json'))) {
+    try {
+      const packageJson = JSON.parse(fs.readFileSync(path.join(nodeModulesPath, 'package.json'), 'utf8'));
+      if (packageJson.version === version || version === 'latest') {
+        return nodeModulesPath;
+      }
+    } catch (error) {
+      // If we can't read package.json, still use it
+      return nodeModulesPath;
+    }
+  }
+  
+  return null;
+}
+
 // Link command
 async function linkCommand() {
   const packageJsonPath = path.join(process.cwd(), 'package.json');
@@ -184,33 +344,69 @@ async function linkCommand() {
     return;
   }
   
-  console.log(chalk.blue(`🔗 Linking ${Object.keys(dependencies).length} dependencies...`));
+  console.log(chalk.blue(`🔗 Processing ${Object.keys(dependencies).length} dependencies...`));
   
-  const nodeModulesPath = path.join(process.cwd(), 'node_modules');
-  if (!fs.existsSync(nodeModulesPath)) {
-    fs.mkdirSync(nodeModulesPath, { recursive: true });
-  }
+  const registry = loadRegistry();
+  let updatedRegistry = false;
   
   for (const [name, version] of Object.entries(dependencies)) {
     try {
       // Clean version string (remove ^, ~, etc.)
       const cleanVersion = version.replace(/^[\^~]/, '');
+      const key = getPackageKey(name, cleanVersion);
       
-      // Install to global store if not exists
-      const storePath = await installToGlobalStore(name, cleanVersion);
-      
-      // Create symlink
-      const linkPath = path.join(nodeModulesPath, name);
-      const isSymlink = createSymlink(storePath, linkPath);
-      
-      if (isSymlink) {
-        console.log(chalk.green(`🔗 Linked ${name}@${cleanVersion}`));
+      // Check if package exists in global registry
+      if (registry[key] && fs.existsSync(registry[key].storePath)) {
+        console.log(chalk.blue(`📦 ${name}@${cleanVersion} is already available in global store`));
+        console.log(chalk.gray(`   Location: ${registry[key].storePath}`));
+        
+        // Create symlink to existing installation
+        const nodeModulesPath = path.join(process.cwd(), 'node_modules');
+        if (!fs.existsSync(nodeModulesPath)) {
+          fs.mkdirSync(nodeModulesPath, { recursive: true });
+        }
+        
+        const linkPath = path.join(nodeModulesPath, name);
+        const isSymlink = createSymlink(registry[key].storePath, linkPath);
+        
+        if (isSymlink) {
+          console.log(chalk.green(`🔗 Linked to existing ${name}@${cleanVersion}`));
+        } else {
+          console.log(chalk.green(`📋 Copied from existing ${name}@${cleanVersion}`));
+        }
       } else {
-        console.log(chalk.green(`📋 Copied ${name}@${cleanVersion}`));
+        // Check if package exists in current project
+        const localPath = findPackageInCurrentProject(name, cleanVersion);
+        
+        if (localPath) {
+          console.log(chalk.yellow(`📦 ${name}@${cleanVersion} found in current project`));
+          console.log(chalk.blue(`   Adding to global registry: ${localPath}`));
+          
+          // Add to global registry
+          registry[key] = {
+            name,
+            version: cleanVersion,
+            storePath: localPath,
+            addedAt: new Date().toISOString(),
+            source: 'current-project'
+          };
+          updatedRegistry = true;
+          
+          console.log(chalk.green(`✅ Added ${name}@${cleanVersion} to global registry`));
+        } else {
+          console.log(chalk.red(`❌ ${name}@${cleanVersion} not found in current project`));
+          console.log(chalk.yellow(`   Please install it first: npm install ${name}@${cleanVersion}`));
+        }
       }
     } catch (error) {
-      console.error(chalk.red(`❌ Failed to link ${name}: ${error.message}`));
+      console.error(chalk.red(`❌ Failed to process ${name}: ${error.message}`));
     }
+  }
+  
+  // Save registry if updated
+  if (updatedRegistry) {
+    saveRegistry(registry);
+    console.log(chalk.blue('📝 Updated global registry'));
   }
   
   console.log(chalk.green('✅ Link command completed'));
@@ -316,11 +512,11 @@ function listCommand() {
   const packages = Object.values(registry);
   
   if (packages.length === 0) {
-    console.log(chalk.yellow('📦 No packages in global store'));
+    console.log(chalk.yellow('📦 No packages in global registry'));
     return;
   }
   
-  console.log(chalk.blue(`📦 Global store contains ${packages.length} packages:`));
+  console.log(chalk.blue(`📦 Global registry contains ${packages.length} package addresses:`));
   console.log();
   
   // Group by package name
@@ -337,7 +533,9 @@ function listCommand() {
     versions.forEach(pkg => {
       const exists = fs.existsSync(pkg.storePath);
       const status = exists ? chalk.green('✅') : chalk.red('❌');
+      const source = pkg.source || 'unknown';
       console.log(`  ${status} ${pkg.version} (${pkg.storePath})`);
+      console.log(chalk.gray(`     Source: ${source}`));
     });
     console.log();
   }
@@ -371,7 +569,7 @@ async function searchCommand(packageName) {
         const status = exists ? chalk.green('✅') : chalk.red('❌');
         console.log(`  ${status} ${pkg.name}@${pkg.version} (${pkg.storePath})`);
       });
-    } else {
+  } else {
       console.log(chalk.yellow(`⚠️ No packages found matching "${packageName}" in global store`));
     }
     
@@ -466,98 +664,62 @@ async function cleanCommand() {
   const packages = Object.values(registry);
   
   if (packages.length === 0) {
-    console.log(chalk.yellow('📦 No packages in global store to clean'));
+    console.log(chalk.yellow('📦 No packages in global registry to clean'));
     return;
   }
   
-  console.log(chalk.blue('🧹 Checking for unused packages...'));
+  console.log(chalk.blue('🧹 Checking for broken package addresses...'));
   
-  const unused = [];
   const broken = [];
+  const valid = [];
   
   for (const pkg of packages) {
     if (!fs.existsSync(pkg.storePath)) {
       broken.push(pkg);
     } else {
-      // Check if package is referenced by any symlinks
-      let isUsed = false;
-      
-      // This is a simplified check - in a real implementation,
-      // you might want to scan all projects for symlinks
-      try {
-        // Check if any symlinks point to this package
-        const storeDir = path.dirname(pkg.storePath);
-        const packageDir = path.basename(pkg.storePath);
-        
-        // Look for symlinks in common project locations
-        const commonPaths = [
-          path.join(process.env.HOME || process.env.USERPROFILE, 'projects'),
-          path.join(process.env.HOME || process.env.USERPROFILE, 'workspace'),
-          process.cwd()
-        ];
-        
-        for (const basePath of commonPaths) {
-          if (fs.existsSync(basePath)) {
-            // This is a simplified check - in practice, you'd need to recursively scan
-            // for symlinks that point to the package
-            break;
-          }
-        }
-        
-        // For now, mark as unused if we can't find references
-        // In a real implementation, you'd track symlink references
-        unused.push(pkg);
-      } catch (error) {
-        console.log(chalk.yellow(`⚠️ Error checking usage for ${pkg.name}@${pkg.version}: ${error.message}`));
-      }
+      valid.push(pkg);
     }
   }
   
   if (broken.length > 0) {
-    console.log(chalk.red(`❌ Found ${broken.length} broken packages:`));
+    console.log(chalk.red(`❌ Found ${broken.length} broken package addresses:`));
     broken.forEach(pkg => {
-      console.log(chalk.red(`  • ${pkg.name}@${pkg.version}`));
+      console.log(chalk.red(`  • ${pkg.name}@${pkg.version} -> ${pkg.storePath}`));
     });
   }
   
-  if (unused.length > 0) {
-    console.log(chalk.yellow(`⚠️ Found ${unused.length} potentially unused packages:`));
-    unused.forEach(pkg => {
-      console.log(chalk.yellow(`  • ${pkg.name}@${pkg.version}`));
+  if (valid.length > 0) {
+    console.log(chalk.green(`✅ Found ${valid.length} valid package addresses:`));
+    valid.forEach(pkg => {
+      console.log(chalk.green(`  • ${pkg.name}@${pkg.version} -> ${pkg.storePath}`));
     });
   }
   
-  if (broken.length === 0 && unused.length === 0) {
-    console.log(chalk.green('✅ No packages need cleaning'));
+  if (broken.length === 0) {
+    console.log(chalk.green('✅ All package addresses are valid'));
     return;
   }
   
   const { clean } = await inquirer.prompt([{
     type: 'confirm',
     name: 'clean',
-    message: `Remove ${broken.length + unused.length} packages from global store?`,
+    message: `Remove ${broken.length} broken package addresses from global registry?`,
     default: false
   }]);
   
   if (clean) {
-    console.log(chalk.blue('🧹 Cleaning packages...'));
+    console.log(chalk.blue('🧹 Cleaning broken addresses...'));
     
-    const toRemove = [...broken, ...unused];
     const newRegistry = { ...registry };
     
-    for (const pkg of toRemove) {
+    for (const pkg of broken) {
       const key = getPackageKey(pkg.name, pkg.version);
       delete newRegistry[key];
-      
-      if (fs.existsSync(pkg.storePath)) {
-        fs.rmSync(pkg.storePath, { recursive: true, force: true });
-      }
-      
-      console.log(chalk.green(`🗑️ Removed ${pkg.name}@${pkg.version}`));
+      console.log(chalk.green(`🗑️ Removed broken address for ${pkg.name}@${pkg.version}`));
     }
     
     saveRegistry(newRegistry);
-    console.log(chalk.green(`✅ Cleaned ${toRemove.length} packages`));
+    console.log(chalk.green(`✅ Cleaned ${broken.length} broken addresses`));
   }
 }
 
@@ -567,7 +729,21 @@ const program = new Command();
 program
   .name('reusepkg')
   .description('Reuse Node.js packages across projects by linking instead of reinstalling')
-  .version('1.2.2');
+  .version('1.3.0');
+
+program
+  .command('install <package-name> [version]')
+  .alias('i')
+  .description('Install a package and link it from global store')
+  .action(async (packageName, version) => {
+    try {
+      initializeGlobalStore();
+      await installCommand(packageName, version);
+    } catch (error) {
+      console.error(chalk.red(`❌ Error: ${error.message}`));
+      process.exit(1);
+    }
+  });
 
 program
   .command('link')
