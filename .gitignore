@@ -80,6 +80,7 @@ jspm_packages/
 ehthumbs.db
 Thumbs.db
 reusepkg-1.0.0.tgz
+.reusepkg.js
 
 # IDE files
 .vscode/
